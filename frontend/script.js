@@ -55,7 +55,7 @@ async function classify(file) {
   const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   try {
-    const res = await fetch("/api/classify", { method: "POST", body: formData, signal: controller.signal });
+    const res = await fetch(`${window.API_BASE}/api/classify`, { method: "POST", body: formData, signal: controller.signal });
     if (!res.ok) throw new Error((await res.json()).detail || "Error al clasificar");
     const data = await res.json();
     renderResult(data);

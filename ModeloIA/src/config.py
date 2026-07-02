@@ -6,11 +6,14 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# config.py vive en ModeloIA/src/, dos niveles bajo la raíz del proyecto
+# (ModeloIA/src/config.py -> ModeloIA/src -> ModeloIA -> raíz).
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+MODELO_IA_DIR = PROJECT_ROOT / "ModeloIA"
 
 RECURSOS_DIR = PROJECT_ROOT / "RECURSOS"
 DATA_DIR = PROJECT_ROOT / "data"
-MODEL_DIR = PROJECT_ROOT / "modeloEntrenado"
+MODEL_DIR = MODELO_IA_DIR / "modeloEntrenado"
 RESULTS_DIR = PROJECT_ROOT / "resultados"
 
 KAGGLE_DATASET_ID = "marcosgabriel/infrared-solar-modules"

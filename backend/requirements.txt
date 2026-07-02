@@ -6,3 +6,5 @@ anthropic
 torch
 torchvision
 Pillow
+opencv-python-headless
+pandas

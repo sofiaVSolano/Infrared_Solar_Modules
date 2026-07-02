@@ -1,7 +1,7 @@
 # Credenciales (NUNCA subir)
 kaggle.json
 .env
-app/.env
+backend/.env
 *.env
 
 # Datos (regenerables o demasiado pesados/propios para versionar)
@@ -9,7 +9,7 @@ RECURSOS/
 data/
 
 # Modelo entrenado (binario pesado, se regenera corriendo el notebook)
-modeloEntrenado/*.pth
+ModeloIA/modeloEntrenado/*.pth
 
 # Python
 __pycache__/

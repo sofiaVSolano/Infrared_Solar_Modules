@@ -10,7 +10,7 @@ from PIL import Image
 
 APP_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = APP_DIR.parent
-sys.path.append(str(PROJECT_ROOT / "src"))
+sys.path.append(str(PROJECT_ROOT / "ModeloIA" / "src"))
 
 from config import CLASSES, CLASSES_ES, MODEL_PATH  # noqa: E402
 from dataset import build_transforms  # noqa: E402
@@ -27,7 +27,10 @@ def load_model():
         return _model
 
     checkpoint = torch.load(MODEL_PATH, map_location=_device)
-    model = build_model(freeze_backbone=True).to(_device)
+    # pretrained=False: los pesos de ImageNet se sobrescriben en la línea de abajo
+    # con el checkpoint entrenado, así que descargarlos solo agrega una dependencia
+    # de red innecesaria (y el contenedor del backend no tiene salida a internet).
+    model = build_model(freeze_backbone=True, pretrained=False).to(_device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
     _model = model

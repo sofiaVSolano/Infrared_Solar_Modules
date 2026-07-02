@@ -1,0 +1,11 @@
+RECURSOS/
+data/
+resultados/
+ModeloIA/notebooks/
+ModeloIA/modeloEntrenado/*.pth
+ModeloIA/src/__pycache__/
+.git/
+.gitignore
+backend/.env
+**/__pycache__/
+*.pyc

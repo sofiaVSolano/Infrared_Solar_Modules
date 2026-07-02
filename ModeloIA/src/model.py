@@ -5,8 +5,8 @@ from torchvision.models import ResNet18_Weights, resnet18
 from config import CLASSES
 
 
-def build_model(freeze_backbone: bool = True) -> nn.Module:
-    model = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
+def build_model(freeze_backbone: bool = True, pretrained: bool = True) -> nn.Module:
+    model = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1 if pretrained else None)
 
     if freeze_backbone:
         for param in model.parameters():

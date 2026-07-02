@@ -6,13 +6,13 @@ Entrena un modelo de Deep Learning (ResNet18 por transfer learning) que clasific
 
 `No-Anomaly, Cell, Cell-Multi, Cracking, Hot-Spot, Hot-Spot-Multi, Diode, Diode-Multi, Offline-Module, Shadowing, Soiling, Vegetation`
 
-El resultado de este pipeline es un **modelo entrenado y evaluado** (`modeloEntrenado/infrared_solar_modules_model.pth`), integrado en una herramienta web (`app/`) donde:
+El resultado de este pipeline es un **modelo entrenado y evaluado** (`ModeloIA/modeloEntrenado/infrared_solar_modules_model.pth`), integrado en una herramienta web (`backend/` + `frontend/`) donde:
 
 1. Una persona sube una imagen térmica.
 2. El modelo la clasifica (clase + nivel de confianza, en español e inglés).
 3. Esa clasificación se pasa como contexto a Claude, que genera la retroalimentación/explicación para el usuario (qué significa la falla detectada, qué acción tomar).
 
-Este documento cubre ambas partes: el pipeline de entrenamiento (`src/` + `notebooks/`) y la herramienta de inferencia + Claude (`app/`), detallada en la sección final.
+Este documento cubre ambas partes: el pipeline de entrenamiento (`ModeloIA/src/` + `ModeloIA/notebooks/`) y la herramienta de inferencia + Claude (`backend/` + `frontend/`), detallada en la sección final.
 
 ---
 
@@ -44,18 +44,18 @@ Este documento cubre ambas partes: el pipeline de entrenamiento (`src/` + `noteb
 
 ```
 RECURSOS/IR (MPPT)  ─┐
-                      ├─► prepare_dataset.py ─► data/split_index.csv ─► dataset.py ─► model.py ─► engine.py (train + early stopping) ─► evaluate.py ─► modeloEntrenado/*.pth
+                      ├─► prepare_dataset.py ─► data/split_index.csv ─► dataset.py ─► model.py ─► engine.py (train + early stopping) ─► evaluate.py ─► ModeloIA/modeloEntrenado/*.pth
 Kaggle (download_dataset.py) ─┘
 ```
 
 | Paso | Archivo | Qué hace |
 |---|---|---|
-| 1. Descarga | `src/download_dataset.py` | Baja el dataset de Kaggle vía API REST (Bearer auth con tu token) a `data/InfraredSolarModules/`. Si ya existe, no vuelve a descargar. |
-| 2. Preparación del índice | `src/prepare_dataset.py` | Lee `module_metadata.json` de Kaggle + las imágenes MPPT de `RECURSOS`, arma un único índice, y hace un split estratificado por clase: **70% train / 15% val / 15% test** (semilla fija = reproducible). Lo guarda en `data/split_index.csv`. |
-| 3. Carga y augmentation | `src/dataset.py` | `Dataset` de PyTorch: lee cada imagen (`cv2`), recorta el overlay si corresponde, y aplica transformaciones. En train: flip horizontal/vertical, rotación ±10°, jitter de brillo/contraste. En val/test: solo resize + normalización. Todo a **128×128 px** (justificado porque las imágenes de Kaggle son nativamente 24×40, no hay información real que aproveche una resolución mayor). |
-| 4. Modelo | `src/model.py` | ResNet18 preentrenado en ImageNet. Se congela todo el backbone excepto `layer4`, y se reemplaza la capa final por una `Linear(512, 12)`. |
-| 5. Entrenamiento | `src/engine.py` + notebook | `CrossEntropyLoss` ponderada por clase (`class_weight="balanced"`, ver más abajo), optimizador Adam (`lr=1e-4`), hasta 50 epochs con **Early Stopping** (paciencia 7 sobre `val_loss`, se restaura el mejor checkpoint). |
-| 6. Evaluación | `src/evaluate.py` | Sobre el split de test: Accuracy, Precision/Recall/F1 macro, métricas por clase, y matriz de confusión (`resultados/matriz_confusion.png`). |
+| 1. Descarga | `ModeloIA/src/download_dataset.py` | Baja el dataset de Kaggle vía API REST (Bearer auth con tu token) a `data/InfraredSolarModules/`. Si ya existe, no vuelve a descargar. |
+| 2. Preparación del índice | `ModeloIA/src/prepare_dataset.py` | Lee `module_metadata.json` de Kaggle + las imágenes MPPT de `RECURSOS`, arma un único índice, y hace un split estratificado por clase: **70% train / 15% val / 15% test** (semilla fija = reproducible). Lo guarda en `data/split_index.csv`. |
+| 3. Carga y augmentation | `ModeloIA/src/dataset.py` | `Dataset` de PyTorch: lee cada imagen (`cv2`), recorta el overlay si corresponde, y aplica transformaciones. En train: flip horizontal/vertical, rotación ±10°, jitter de brillo/contraste. En val/test: solo resize + normalización. Todo a **128×128 px** (justificado porque las imágenes de Kaggle son nativamente 24×40, no hay información real que aproveche una resolución mayor). |
+| 4. Modelo | `ModeloIA/src/model.py` | ResNet18 preentrenado en ImageNet. Se congela todo el backbone excepto `layer4`, y se reemplaza la capa final por una `Linear(512, 12)`. |
+| 5. Entrenamiento | `ModeloIA/src/engine.py` + notebook | `CrossEntropyLoss` ponderada por clase (`class_weight="balanced"`, ver más abajo), optimizador Adam (`lr=1e-4`), hasta 50 epochs con **Early Stopping** (paciencia 7 sobre `val_loss`, se restaura el mejor checkpoint). |
+| 6. Evaluación | `ModeloIA/src/evaluate.py` | Sobre el split de test: Accuracy, Precision/Recall/F1 macro, métricas por clase, y matriz de confusión (`resultados/matriz_confusion.png`). |
 | 7. Guardado | notebook, sección 8 | Guarda el modelo final. |
 
 ### Cómo se maneja el desbalance de clases
@@ -68,7 +68,7 @@ El dataset está fuertemente desbalanceado (`No-Anomaly` ≈10.000 vs `Diode-Mul
 
 | Archivo | Contenido |
 |---|---|
-| `modeloEntrenado/infrared_solar_modules_model.pth` | Checkpoint de PyTorch con: `model_state_dict` (pesos del ResNet18 ya fine-tuneado), `classes` (lista ordenada de las 12 clases), `class_to_idx` (mapeo clase→índice, necesario para decodificar la predicción). |
+| `ModeloIA/modeloEntrenado/infrared_solar_modules_model.pth` | Checkpoint de PyTorch con: `model_state_dict` (pesos del ResNet18 ya fine-tuneado), `classes` (lista ordenada de las 12 clases), `class_to_idx` (mapeo clase→índice, necesario para decodificar la predicción). |
 | `resultados/metricas.json` | Accuracy, Precision/Recall/F1 macro sobre el test set. |
 | `resultados/metricas_por_clase.csv` | Precision, Recall, F1 y soporte (n° de imágenes) por cada una de las 12 clases. |
 | `resultados/matriz_confusion.png` | Matriz de confusión del test set. |
@@ -77,18 +77,18 @@ El dataset está fuertemente desbalanceado (`No-Anomaly` ≈10.000 vs `Diode-Mul
 
 ## Resumen Entrada → Proceso → Salida
 
-| | Entrenamiento (`src/` + `notebooks/`) | Inferencia + Claude (`app/`) |
+| | Entrenamiento (`ModeloIA/src/` + `ModeloIA/notebooks/`) | Inferencia + Claude (`backend/` + `frontend/`) |
 |---|---|---|
 | **Entrada** | 20.027 imágenes térmicas etiquetadas (Kaggle + MPPT) | 1 imagen térmica subida por el usuario (color o gris; se fuerza a gris internamente, ver más abajo) |
 | **Proceso** | Descarga → índice train/val/test → augmentation → transfer learning ResNet18 → early stopping → evaluación | Cargar `infrared_solar_modules_model.pth` → mismo preprocesamiento (resize 128×128 + normalización ImageNet) → forward pass → softmax → clase + confianza → contexto a Claude (clase, confianza, top-3 probabilidades) → explicación en lenguaje natural |
 | **Salida** | Modelo entrenado (`.pth`) + métricas + matriz de confusión | Clase predicha (ES/EN) + confianza + probabilidades por clase + explicación/recomendación de Claude |
 
-### Parte 2: inferencia + integración con Claude (`app/`)
+### Parte 2: inferencia + integración con Claude (`backend/` + `frontend/`)
 
-- **`app/inference.py`**: carga el checkpoint y reutiliza el mismo preprocesamiento de `src/dataset.py`. Fuerza la imagen a escala de grises antes de clasificar (`.convert("L").convert("RGB")`), porque el modelo se entrenó casi en su totalidad con imágenes grises reales (20.000/20.027) — una foto a color real (paleta arcoíris) queda fuera de esa distribución si no se normaliza así.
-- **`app/claude_feedback.py`**: arma el contexto (clase predicha ES/EN, confianza, top-3 probabilidades) y llama a `claude-opus-4-8` para generar una explicación + recomendación en español.
-- **`app/main.py`**: FastAPI, endpoint `POST /api/classify`, sirve el frontend estático.
-- **`app/static/`**: frontend a medida (visor estilo cámara térmica, comparación imagen original vs. la que ve el modelo, panel de referencia con las 12 clases).
+- **`backend/inference.py`**: carga el checkpoint y reutiliza el mismo preprocesamiento de `ModeloIA/src/dataset.py`. Fuerza la imagen a escala de grises antes de clasificar (`.convert("L").convert("RGB")`), porque el modelo se entrenó casi en su totalidad con imágenes grises reales (20.000/20.027) — una foto a color real (paleta arcoíris) queda fuera de esa distribución si no se normaliza así.
+- **`backend/claude_feedback.py`**: arma el contexto (clase predicha ES/EN, confianza, top-3 probabilidades) y llama a `claude-opus-4-8` para generar una explicación + recomendación en español.
+- **`backend/main.py`**: FastAPI, endpoint `POST /api/classify`, sirve el frontend estático.
+- **`frontend/`**: frontend a medida (visor estilo cámara térmica, comparación imagen original vs. la que ve el modelo, panel de referencia con las 12 clases).
 - **Pendiente / fuera de alcance actual**: qué hacer si la imagen subida no se parece a nada del dataset de entrenamiento (out-of-distribution) — hoy el modelo igual devuelve la clase más probable de las 12, sin un mecanismo de "no sé qué es esto".
 
 Si quieres, en la próxima iteración armamos ese script de inferencia y el diseño del prompt para Claude.
