@@ -6,13 +6,13 @@ Entrena un modelo de Deep Learning (ResNet18 por transfer learning) que clasific
 
 `No-Anomaly, Cell, Cell-Multi, Cracking, Hot-Spot, Hot-Spot-Multi, Diode, Diode-Multi, Offline-Module, Shadowing, Soiling, Vegetation`
 
-El resultado de este pipeline es un **modelo entrenado y evaluado** (`modeloEntrenado/infrared_solar_modules_model.pth`), pensado para integrarse después en una herramienta donde:
+El resultado de este pipeline es un **modelo entrenado y evaluado** (`modeloEntrenado/infrared_solar_modules_model.pth`), integrado en una herramienta web (`app/`) donde:
 
 1. Una persona sube una imagen térmica.
-2. El modelo la clasifica (clase + nivel de confianza).
-3. Esa clasificación se pasa como contexto a un LLM de Claude, que genera la retroalimentación/explicación para el usuario (ej. qué significa la falla detectada, qué acción tomar).
+2. El modelo la clasifica (clase + nivel de confianza, en español e inglés).
+3. Esa clasificación se pasa como contexto a Claude, que genera la retroalimentación/explicación para el usuario (qué significa la falla detectada, qué acción tomar).
 
-Este documento cubre la parte **1 (entrenamiento)**. La parte de inferencia + integración con Claude todavía no está construida — se detalla al final qué necesita esa siguiente etapa.
+Este documento cubre ambas partes: el pipeline de entrenamiento (`src/` + `notebooks/`) y la herramienta de inferencia + Claude (`app/`), detallada en la sección final.
 
 ---
 
@@ -77,16 +77,18 @@ El dataset está fuertemente desbalanceado (`No-Anomaly` ≈10.000 vs `Diode-Mul
 
 ## Resumen Entrada → Proceso → Salida
 
-| | Entrenamiento (lo que existe hoy) | Futuro: inferencia + Claude (no construido aún) |
+| | Entrenamiento (`src/` + `notebooks/`) | Inferencia + Claude (`app/`) |
 |---|---|---|
-| **Entrada** | 20.027 imágenes térmicas etiquetadas (Kaggle + MPPT) | 1 imagen térmica subida por el usuario |
-| **Proceso** | Descarga → índice train/val/test → augmentation → transfer learning ResNet18 → early stopping → evaluación | Cargar `infrared_solar_modules_model.pth` → mismo preprocesamiento (resize 128×128 + normalización ImageNet, mismo recorte de overlay si aplica) → forward pass → softmax → clase + confianza → armar prompt con ese resultado → llamada a la API de Claude |
-| **Salida** | Modelo entrenado (`.pth`) + métricas + matriz de confusión | Clase predicha + confianza + explicación/recomendación generada por Claude en lenguaje natural |
+| **Entrada** | 20.027 imágenes térmicas etiquetadas (Kaggle + MPPT) | 1 imagen térmica subida por el usuario (color o gris; se fuerza a gris internamente, ver más abajo) |
+| **Proceso** | Descarga → índice train/val/test → augmentation → transfer learning ResNet18 → early stopping → evaluación | Cargar `infrared_solar_modules_model.pth` → mismo preprocesamiento (resize 128×128 + normalización ImageNet) → forward pass → softmax → clase + confianza → contexto a Claude (clase, confianza, top-3 probabilidades) → explicación en lenguaje natural |
+| **Salida** | Modelo entrenado (`.pth`) + métricas + matriz de confusión | Clase predicha (ES/EN) + confianza + probabilidades por clase + explicación/recomendación de Claude |
 
-### Lo que falta para la siguiente etapa (no incluido en este documento/pipeline)
+### Parte 2: inferencia + integración con Claude (`app/`)
 
-- Un script/endpoint de **inferencia** que cargue el `.pth`, reciba una imagen nueva, aplique el mismo preprocesamiento que `dataset.py` (mismo `IMG_SIZE`, misma normalización, mismo criterio de recorte de overlay si la imagen viene de una cámara de campo) y devuelva clase + probabilidad.
-- El **prompt/lógica de integración con Claude**: qué contexto exacto se le pasa al LLM (clase predicha, confianza, quizás las probabilidades de las otras clases, metadatos del panel) para que la retroalimentación sea útil y no solo repita el nombre de la clase.
-- Definir qué pasa si la imagen subida no se parece a nada del dataset de entrenamiento (out-of-distribution) — por ejemplo, si alguien sube una foto que no es una imagen térmica.
+- **`app/inference.py`**: carga el checkpoint y reutiliza el mismo preprocesamiento de `src/dataset.py`. Fuerza la imagen a escala de grises antes de clasificar (`.convert("L").convert("RGB")`), porque el modelo se entrenó casi en su totalidad con imágenes grises reales (20.000/20.027) — una foto a color real (paleta arcoíris) queda fuera de esa distribución si no se normaliza así.
+- **`app/claude_feedback.py`**: arma el contexto (clase predicha ES/EN, confianza, top-3 probabilidades) y llama a `claude-opus-4-8` para generar una explicación + recomendación en español.
+- **`app/main.py`**: FastAPI, endpoint `POST /api/classify`, sirve el frontend estático.
+- **`app/static/`**: frontend a medida (visor estilo cámara térmica, comparación imagen original vs. la que ve el modelo, panel de referencia con las 12 clases).
+- **Pendiente / fuera de alcance actual**: qué hacer si la imagen subida no se parece a nada del dataset de entrenamiento (out-of-distribution) — hoy el modelo igual devuelve la clase más probable de las 12, sin un mecanismo de "no sé qué es esto".
 
 Si quieres, en la próxima iteración armamos ese script de inferencia y el diseño del prompt para Claude.
