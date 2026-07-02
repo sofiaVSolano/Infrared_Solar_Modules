@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Termoscan — Diagnóstico IR de módulos solares</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="scanlines"></div>
+
+<header class="topbar">
+  <div class="topbar__brand">
+    <span class="topbar__dot"></span>
+    <span>TERMOSCAN</span>
+  </div>
+  <div class="topbar__sub">Clasificador IR de módulos solares · ResNet18 + Claude</div>
+</header>
+
+<main class="stage">
+
+  <section class="viewfinder" id="viewfinder">
+    <div class="viewfinder__corner viewfinder__corner--tl"></div>
+    <div class="viewfinder__corner viewfinder__corner--tr"></div>
+    <div class="viewfinder__corner viewfinder__corner--bl"></div>
+    <div class="viewfinder__corner viewfinder__corner--br"></div>
+
+    <img id="preview" class="viewfinder__img" alt="Vista previa" hidden>
+    <div id="scanline" class="scanline" hidden></div>
+
+    <div id="dropHint" class="viewfinder__hint">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+        <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M7 9l5-5 5 5M12 4v13"/>
+      </svg>
+      <p>Arrastrá una imagen térmica acá<br><span>o hacé clic para elegir un archivo</span></p>
+    </div>
+
+    <input type="file" id="fileInput" accept="image/*" hidden>
+  </section>
+
+  <section class="readout" id="readout" hidden>
+    <div class="compare">
+      <div class="compare__item">
+        <img id="imgColor" class="compare__img" alt="Original (color)">
+        <span class="compare__tag">Original</span>
+      </div>
+      <div class="compare__item">
+        <img id="imgGris" class="compare__img" alt="Escala de grises">
+        <span class="compare__tag">Lo que ve el modelo (gris)</span>
+      </div>
+    </div>
+
+    <div class="readout__header">
+      <div class="readout__class">
+        <span class="readout__label" id="claseEs">—</span>
+        <span class="readout__sub" id="claseEn">—</span>
+      </div>
+      <div class="readout__confidence">
+        <span id="confVal">0%</span>
+        <span class="readout__confidence-label">confianza</span>
+      </div>
+    </div>
+
+    <div class="heatbar">
+      <div class="heatbar__fill" id="heatbarFill"></div>
+    </div>
+
+    <h3 class="readout__title">Otras probabilidades</h3>
+    <div id="probList" class="problist"></div>
+
+    <h3 class="readout__title">Diagnóstico (Claude)</h3>
+    <div class="console" id="consoleBox">
+      <span id="consoleText"></span><span class="console__cursor">▌</span>
+    </div>
+  </section>
+
+  <aside class="legend">
+    <h3 class="legend__title">Clases que el modelo puede detectar</h3>
+    <p class="legend__note">Estas son las 12 clases reales con las que se entrenó el modelo (dataset Kaggle "Infrared Solar Modules"). Tu imagen se va a clasificar en una de estas.</p>
+    <div class="legend__list">
+      <div class="legend__item">
+        <span class="legend__name">Sin anomalía <em>(No-Anomaly)</em></span>
+        <span class="legend__desc">El módulo opera correctamente y no presenta anomalías térmicas.</span>
+      </div>
+      <div class="legend__item">
+        <span class="legend__name">Celda dañada <em>(Cell)</em></span>
+        <span class="legend__desc">Una celda individual muestra una anomalía térmica puntual (posible microfisura o degradación aislada).</span>
+      </div>
+      <div class="legend__item">
+        <span class="legend__name">Múltiples celdas dañadas <em>(Cell-Multi)</em></span>
+        <span class="legend__desc">Varias celdas del mismo módulo presentan anomalías térmicas dispersas.</span>
+      </div>
+      <div class="legend__item">
+        <span class="legend__name">Fisura / agrietamiento <em>(Cracking)</em></span>
+        <span class="legend__desc">Grietas físicas en el módulo que alteran la distribución normal del calor.</span>
+      </div>
+      <div class="legend__item">
+        <span class="legend__name">Punto caliente <em>(Hot-Spot)</em></span>
+        <span class="legend__desc">Una zona puntual con temperatura significativamente mayor al resto del módulo.</span>
+      </div>
+      <div class="legend__item">
+        <span class="legend__name">Múltiples puntos calientes <em>(Hot-Spot-Multi)</em></span>
+        <span class="legend__desc">Varias zonas puntuales de sobrecalentamiento en el mismo módulo.</span>
+      </div>
+      <div class="legend__item">
+        <span class="legend__name">Falla de diodo <em>(Diode)</em></span>
+        <span class="legend__desc">Un diodo de bypass funciona mal, generando un patrón térmico característico en parte del módulo.</span>
+      </div>
+      <div class="legend__item">
+        <span class="legend__name">Múltiples fallas de diodo <em>(Diode-Multi)</em></span>
+        <span class="legend__desc">Más de un diodo de bypass con funcionamiento anómalo.</span>
+      </div>
+      <div class="legend__item">
+        <span class="legend__name">Módulo desconectado <em>(Offline-Module)</em></span>
+        <span class="legend__desc">El módulo no está generando energía; aparece con una firma térmica uniforme, distinta a los módulos vecinos en operación.</span>
+      </div>
+      <div class="legend__item">
+        <span class="legend__name">Sombreado <em>(Shadowing)</em></span>
+        <span class="legend__desc">Una sombra parcial sobre el módulo genera diferencias de temperatura y pérdida de eficiencia.</span>
+      </div>
+      <div class="legend__item">
+        <span class="legend__name">Suciedad <em>(Soiling)</em></span>
+        <span class="legend__desc">Acumulación de polvo, hojas u otros residuos que generan calentamiento localizado.</span>
+      </div>
+      <div class="legend__item">
+        <span class="legend__name">Vegetación <em>(Vegetation)</em></span>
+        <span class="legend__desc">Vegetación obstruyendo parte del módulo, afectando su rendimiento térmico.</span>
+      </div>
+    </div>
+  </aside>
+
+</main>
+
+<div id="loading" class="loading" hidden>
+  <div class="loading__ring"></div>
+  <p>Analizando termografía…<br><span style="font-size:12px;opacity:0.6">(clasificación + diagnóstico de Claude, puede tardar ~10s)</span></p>
+</div>
+
+<script src="/static/script.js"></script>
+</body>
+</html>

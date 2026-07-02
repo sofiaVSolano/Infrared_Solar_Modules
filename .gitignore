@@ -1,0 +1,27 @@
+# Credenciales (NUNCA subir)
+kaggle.json
+.env
+app/.env
+*.env
+
+# Datos (regenerables o demasiado pesados/propios para versionar)
+RECURSOS/
+data/
+
+# Modelo entrenado (binario pesado, se regenera corriendo el notebook)
+modeloEntrenado/*.pth
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Sistema
+.DS_Store
+Thumbs.db
